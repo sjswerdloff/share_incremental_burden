@@ -24,7 +24,7 @@ def redistribute_integer_dose_single_shot_by_weight(dose_by_beam: Dict, cGy_to_d
     for key in dose_by_beam:
         weight = redist[key]/dose_sum
         weighted_burden = weight * cGy_to_distribute
-        dose_increment = round(weighted_burden-0.5) # round down
+        dose_increment = round(weighted_burden-(0.5*sign)) # round down
         print (f"key {key}, value {dose_by_beam[key]}, dose_increment = {dose_increment} from weighted+burden {weighted_burden} using weight {weight}")
         redist[key] += dose_increment
 
@@ -36,12 +36,15 @@ def redistribute_integer_dose_single_shot_by_weight(dose_by_beam: Dict, cGy_to_d
     return redist
 
 
-def redistribute_integer_dose(dose_by_beam:Dict, cGy_to_distribute:int) -> Dict:
+def redistribute_integer_dose(dose_by_beam:Dict, cGy_to_distribute:int, oneshot_first:bool=False) -> Dict:
     dose_sum = sum(dose_by_beam.values())
-    redist = dict(dose_by_beam)
-    # redist = redistribute_integer_dose_single_shot_by_weight(dose_by_beam, cGy_to_distribute)
-    # redist_sum = sum(redist.values())
-    initial_remainder = cGy_to_distribute # - (redist_sum - dose_sum)
+    if oneshot_first:
+        redist = redistribute_integer_dose_single_shot_by_weight(dose_by_beam, cGy_to_distribute)
+        redist_sum = sum(redist.values())
+        initial_remainder = cGy_to_distribute  - (redist_sum - dose_sum)
+    else:
+        redist = dict(dose_by_beam)
+        initial_remainder = cGy_to_distribute # - (redist_sum - dose_sum)
     sorted_list_of_dose = sorted(dose_by_beam.items(),key=lambda x: x[1],reverse=True)
 
     list_index = 0
@@ -81,7 +84,8 @@ if __name__ == "__main__":
     cGy_to_distribute = -9
     #redist = redistribute_integer_dose_single_shot_by_weight(dose,cGy_to_distribute)
     #print(redist)
-    redist = redistribute_integer_dose(dose,cGy_to_distribute)
+    oneshot_first=True
+    redist = redistribute_integer_dose(dose,cGy_to_distribute, oneshot_first=oneshot_first)
     print(redist)
     redist_sum = sum(redist.values())
     print(f"dose_sum + cGy_to_distribute  = redist_sum ")
