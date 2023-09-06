@@ -85,6 +85,8 @@ def parse_csv_to_target_and_field_doses(filename:str) -> List:
             csv_data = list(reader)
             print(csv_data)
     for csv_line in csv_data:
+        if len(csv_line) == 0:
+            break
         target_dose = int(csv_line[0])
         beam_number_list = [x for x in range(1,len(csv_line))]
         field_dose_list = [int(x) for x in csv_line[1::]]
