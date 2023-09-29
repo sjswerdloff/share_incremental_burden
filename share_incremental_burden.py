@@ -1,6 +1,7 @@
 # share_incremental_burden
-from typing import Dict
-import abc
+from typing import Dict, List
+import csv
+import sys
 
 def redistribute_integer_dose_single_shot_by_weight(dose_by_beam: Dict, cGy_to_distribute: int) ->  Dict:
     """
@@ -24,7 +25,7 @@ def redistribute_integer_dose_single_shot_by_weight(dose_by_beam: Dict, cGy_to_d
     for key in dose_by_beam:
         weight = redist[key]/dose_sum
         weighted_burden = weight * cGy_to_distribute
-        dose_increment = round(weighted_burden-0.5) # round down
+        dose_increment = round(weighted_burden-(0.5*sign)) # round down
         print (f"key {key}, value {dose_by_beam[key]}, dose_increment = {dose_increment} from weighted+burden {weighted_burden} using weight {weight}")
         redist[key] += dose_increment
 
@@ -36,12 +37,15 @@ def redistribute_integer_dose_single_shot_by_weight(dose_by_beam: Dict, cGy_to_d
     return redist
 
 
-def redistribute_integer_dose(dose_by_beam:Dict, cGy_to_distribute:int) -> Dict:
+def redistribute_integer_dose(dose_by_beam:Dict, cGy_to_distribute:int, oneshot_first:bool=False) -> Dict:
     dose_sum = sum(dose_by_beam.values())
-    redist = dict(dose_by_beam)
-    # redist = redistribute_integer_dose_single_shot_by_weight(dose_by_beam, cGy_to_distribute)
-    # redist_sum = sum(redist.values())
-    initial_remainder = cGy_to_distribute # - (redist_sum - dose_sum)
+    if oneshot_first:
+        redist = redistribute_integer_dose_single_shot_by_weight(dose_by_beam, cGy_to_distribute)
+        redist_sum = sum(redist.values())
+        initial_remainder = cGy_to_distribute  - (redist_sum - dose_sum)
+    else:
+        redist = dict(dose_by_beam)
+        initial_remainder = cGy_to_distribute # - (redist_sum - dose_sum)
     sorted_list_of_dose = sorted(dose_by_beam.items(),key=lambda x: x[1],reverse=True)
 
     list_index = 0
@@ -73,16 +77,49 @@ def redistribute_integer_dose(dose_by_beam:Dict, cGy_to_distribute:int) -> Dict:
 
     return redist
 
+def parse_csv_to_target_and_field_doses(filename:str) -> List:
+    list_of_input_data = []
+
+    with open(filename, newline='') as f:
+            reader = csv.reader(f)
+            csv_data = list(reader)
+            print(csv_data)
+    for csv_line in csv_data:
+        if len(csv_line) == 0:
+            break
+        target_dose = int(csv_line[0])
+        beam_number_list = [x for x in range(1,len(csv_line))]
+        field_dose_list = [int(x) for x in csv_line[1::]]
+        field_doses = dict(zip(beam_number_list,field_dose_list))
+        input_data_set = {"target_dose":target_dose, "field_doses": field_doses}
+        list_of_input_data.append(input_data_set)
+
+    return list_of_input_data
+
 if __name__ == "__main__":
-    dose = {1: 100, 2: 50, 3: 25, 4: 25}
-    sorted_list_of_dose = sorted(dose.items(),key=lambda x: x[1],reverse=True)
-   # dose = dict(redist)
-    dose_sum = sum (dose.values())
-    cGy_to_distribute = -9
-    #redist = redistribute_integer_dose_single_shot_by_weight(dose,cGy_to_distribute)
-    #print(redist)
-    redist = redistribute_integer_dose(dose,cGy_to_distribute)
-    print(redist)
-    redist_sum = sum(redist.values())
-    print(f"dose_sum + cGy_to_distribute  = redist_sum ")
-    print(f" {dose_sum} + {cGy_to_distribute} =  {redist_sum} ?")
+    
+
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+        list_of_input_data = parse_csv_to_target_and_field_doses(filename)
+
+    else:
+        dose = {1: 100, 2: 50, 3: 25, 4: 25}
+        target_dose = 191
+        cGy_to_distribute = target_dose - sum (dose.values())
+        input_data_set = {"target_dose":target_dose, "field_doses": dose}
+        list_of_input_data = [input_data_set]
+    
+    for input_data_set in list_of_input_data:
+        dose = input_data_set["field_doses"]
+        target_dose = input_data_set["target_dose"]
+        dose_sum = sum (dose.values())
+        cGy_to_distribute = target_dose - dose_sum
+        sorted_list_of_dose = sorted(dose.items(),key=lambda x: x[1],reverse=True)
+        print(dose)     
+        oneshot_first=True
+        redist = redistribute_integer_dose(dose,cGy_to_distribute, oneshot_first=oneshot_first)
+        print(redist)
+        redist_sum = sum(redist.values())
+        print(f"dose_sum + cGy_to_distribute  = redist_sum ")
+        print(f" {dose_sum} + {cGy_to_distribute} =  {redist_sum} ?")
