@@ -96,6 +96,35 @@ def parse_csv_to_target_and_field_doses(filename:str) -> List:
 
     return list_of_input_data
 
+def redistribute_dose(dose_by_beam: Dict, cGy_to_distribute:int) -> Dict:
+    '''
+    The cGy_to_distribute will be dispersed to integers and allocated by each beams weight
+    '''
+    sign = 1 if cGy_to_distribute>0 else -1
+    # step 1: distribute the cGy to all beams in high precision
+    total_beam_dose = sum(dose_by_beam.values())
+    beam_weights = {key: value/total_beam_dose for key, value in dose_by_beam.items()}
+    redist_dose = {key: value*cGy_to_distribute for key, value in beam_weights.items()}
+    # step 2: only keep the integer section of a beam dose.
+    # e.g. 5.966->5, 9.123->9
+    int_redist_dose = {key: int(value) for key, value in redist_dose.items()}
+    # step 3: calculated the dropped fractional part of the redist dose
+    # e.g. 5.966->5, dropped 0.966; 9.123->9, dropped 0.123
+    dropped_fractional_redist_dose = {key: redist_dose[key] - int_redist_dose[key] for key in redist_dose}
+    dropped_fractional_redist_dose_with_weight = {key: abs(dropped_fractional_redist_dose[key]) * beam_weights[key] for key in redist_dose}
+    # step 4: if where will be 1 cGy (as adjustment for the rounding issue) allocated to a beam, which beam should be considered first?
+    beam_name_redist_dose_priority = sorted(dropped_fractional_redist_dose_with_weight.items(), key=lambda x:x[1], reverse=True)
+    # step 5: calculate the gap between sum of rounded distributed cGy and the original given cGy
+    gap = cGy_to_distribute - sum(int_redist_dose.values())
+    # step 6: disperse the gap value to redist_dose by pervious calculated priority
+    int_redist_dose_adjusted = dict(int_redist_dose)
+    for i in range(0, abs(gap)):
+        key = beam_name_redist_dose_priority[i][0]
+        int_redist_dose_adjusted[key] += sign
+    # step 6: apply the redist dose to the beam
+    beam_redist_dose = {key: dose_by_beam[key] + int_redist_dose_adjusted[key] for key in dose_by_beam}
+    return beam_redist_dose
+
 if __name__ == "__main__":
     
 
